@@ -11,5 +11,5 @@ This is a simple Python-based web scraper designed to extract information about 
 
 ## Requirements
 See `requirements.txt`. To install: 
-`pip install requirements.txt`
+`pip install -r requirements.txt`
 
