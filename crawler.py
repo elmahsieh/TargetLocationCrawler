@@ -2,8 +2,9 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import csv
+from tqdm import tqdm 
 
-# Function to fetch all state URLs from the main directory page
+# Fetch all state URLs from the main directory 
 def fetch_state_links(base_url):
     print("Fetching state links...")
     response = requests.get(base_url)
@@ -20,14 +21,14 @@ def fetch_state_links(base_url):
     
     return state_urls
 
-# Function to fetch city links for a given state
+# Fetch city links for a given state
 def fetch_city_links(state_url):
     print()
     print(f"Fetching city links for STATE: {state_url}")
     response = requests.get(state_url)
     soup = BeautifulSoup(response.content, 'html.parser')
 
-    # Find all city buttons and city links
+    # Find city buttons and city links
     city_links = []
     city_buttons = soup.find_all('div', class_='view_cityName__vSrti')
 
@@ -47,21 +48,23 @@ def fetch_city_links(state_url):
                 if not city_url.startswith('https://'):
                     city_url = 'https://www.target.com' + city_url
                 
-                city_links.append((city_name, city_url))
+                city_links.append((city_name, city_url, store_id))
 
-    # For cities without multiple stores, just grab the links as usual
+    # For cities without multiple stores, grab the links as usual
     regular_city_links = soup.find_all('a', class_='view_cityNameLink__O_Xez')
     for link in regular_city_links:
         city_name = link.get_text(strip=True)
         city_url = 'https://www.target.com' + link['href']
-        city_links.append((city_name, city_url))
+        city_links.append((city_name, city_url, None))
 
     return city_links
 
-# Function to fetch store details from a city's store page
+# Store details from a city's store page
 def fetch_store_details(city_url):
-    print(f"Fetching store details from city page: {city_url}")
-    # Make sure the URL is fully qualified
+
+    # Uncomment the following to print store details
+    # print(f"Fetching store details from city page: {city_url}")
+
     if not city_url.startswith('https://'):
         city_url = 'https://www.target.com' + city_url
 
@@ -95,7 +98,6 @@ def fetch_store_details(city_url):
 
     return store_data
 
-# Function to save the store data into a CSV file
 def save_to_csv(data, filename='target_store_data.csv'):
     print(f"Saving data to CSV file: {filename}")
     with open(filename, mode='w', newline='', encoding='utf-8') as csv_file:
@@ -106,9 +108,8 @@ def save_to_csv(data, filename='target_store_data.csv'):
         for row in data:
             writer.writerow(row)
 
-# Main function to orchestrate the scraping and saving
 def main():
-    # Base URL for Target store directory
+
     BASE_URL = 'https://www.target.com/store-locator/store-directory'
 
     all_store_data = []
@@ -120,17 +121,21 @@ def main():
         # Step 2: Fetch city links for each state
         city_links = fetch_city_links(state_url)
 
-        for city_name, city_url in city_links:
-            # Step 3: Fetch store details for each city
-            store_details = fetch_store_details(city_url)
+        # Initialize tqdm with the total number of stores (cities) in the state
+        with tqdm(total=len(city_links), desc=f"Fetching stores in {state_name}") as pbar:
+            for city_name, city_url, store_id in city_links:
+                # Step 3: Fetch store details for each city
+                store_details = fetch_store_details(city_url)
 
-            if store_details:
-                # Add state and city information to the store data
-                store_details['State'] = state_name
-                store_details['City'] = city_name
-                all_store_data.append(store_details)
+                if store_details:
+                    store_details['State'] = state_name
+                    store_details['City'] = city_name
+                    store_details['Store ID'] = store_id if store_id else 'N/A'
+                    all_store_data.append(store_details)
 
-    # Step 4: Save all collected data to a CSV file
+                pbar.set_postfix(store_id=store_id, city=city_name, state=state_name)
+                pbar.update(1)
+
     save_to_csv(all_store_data)
 
 if __name__ == '__main__':
